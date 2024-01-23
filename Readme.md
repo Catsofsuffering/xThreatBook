@@ -1,4 +1,4 @@
-# Threatinfo Command
+# xThreatBook
 
 ## Description
 
