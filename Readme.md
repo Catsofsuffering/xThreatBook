@@ -7,7 +7,7 @@ This command fetches threat information from XThreatBook by API based on the IPs
 ## Syntax
 
 ```spl
-threatinfo threat_url=<fieldname> (query_type=(scene_ip_reputation, ip_query, domain_query, scene_dns, ip_adv_query, domain_adv_query, domain_sub_domains, scene_domain_context)
+threatinfo threat_url=<fieldname> query_type=(scene_ip_reputation, ip_query, domain_query, scene_dns, ip_adv_query, domain_adv_query, domain_sub_domains, scene_domain_context)
 ```
 
 ## Description
