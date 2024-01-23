@@ -7,7 +7,7 @@ This command fetches threat information from XThreatBook by API based on the IPs
 ## Syntax
 
 ```spl
-threatinfo threat_url=<fieldname> (query_type=(scene_ip_reputation))? (query_type=(ip_query))? (query_type=(domain_query))? (query_type=(scene_dns))? (query_type=(ip_adv_query))? (query_type=(domain_adv_query))? (query_type=(domain_sub_domains))? (query_type=(scene_domain_context))?
+threatinfo threat_url=<fieldname> (query_type=(scene_ip_reputation, ip_query, domain_query, scene_dns, ip_adv_query, domain_adv_query, domain_sub_domains, scene_domain_context)
 ```
 
 ## Description
@@ -20,12 +20,6 @@ This command can fetch threat information from **XThreatBook** by API based on t
 Use SPL command "spath" to parse the result.
 
 ## Example
-
-```spl
-.. | threatinfo threat_url=url
-```
-
-# Example
 
 Execute the following SPL command in the Splunk Search Head:
 
