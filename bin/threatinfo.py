@@ -21,7 +21,7 @@ from splunklib.searchcommands import (
     validators,
 )
 
-__version__ = "1.0.241"
+__version__ = "1.1.244"
 
 __apikey__ = ""
 
@@ -42,7 +42,7 @@ class Threatinfo(StreamingCommand):
 
             | makeresults
             | eval url="159.203.93.255"
-            | threatinfo threat_url=url
+            | threatinfo threat_url=url query_type=scene_ip_reputation get_raw_response=true
 
         There would add a field name "response" about the XThreatBook API responsed. And the field value would like this below:
 
@@ -89,7 +89,7 @@ class Threatinfo(StreamingCommand):
         doc="""
         **Syntax:** **query_type=***<scene_ip_reputation|ip_query|domain_query|scene_dns  \
         |ip_adv_query|domain_adv_query|domain_sub_domains|scene_domain_context>*
-        **Description:**The option determind which api to query.""",
+        **Description:**The option determines which api to query.""",
         require=False,
         default="scene_ip_reputation",
         validate=validators.Set(
@@ -102,6 +102,15 @@ class Threatinfo(StreamingCommand):
             "domain_sub_domains",
             "scene_domain_context",
         ),
+    )
+
+    get_raw_response = Option(
+        doc="""
+        **Syntax:** **get_raw_response=***<boolean>*
+        **Description:**The option determines whether to get raw response.""",
+        require=False,
+        default=False,
+        validate=validators.Boolean(),
     )
 
     def __init__(self):
@@ -134,22 +143,19 @@ class Threatinfo(StreamingCommand):
             "apikey": self.api_key,
             "resource": threat_url,
         }
-        try:
-            response = requests.request("GET", query_api_url, params=query_params)
-            result = json.loads(response.text)
-        except requests.ConnectionError as e:
-            self.logger.error("Aborting due to API connection failure.  %s", e)
-        except Exception as e:
-            self.logger.exception("Failure while calling API. %s", e)
+        with requests.Session() as s:
+            response = s.get(query_api_url, params=query_params)
+            result = response.json()
         return result if isinstance(result, dict) else None
 
     """ This method is going to flat the nested dictionaries """
-    # def _flatten_dict(self, _dict):
-    #     for k, v in _dict.items():
-    #         if not isinstance(v, dict):
-    #             yield k, v
-    #         else:
-    #             yield from ((k, *q) for q in self._flatten_dict(self, v))
+
+    def _flatten_dict(self, _dict):
+        for k, v in _dict.items():
+            if not isinstance(v, dict):
+                yield k, v
+            else:
+                yield from ((k, *q) for q in self._flatten_dict(v))
 
     def stream(self, records):
         for index, record in enumerate(records):
@@ -157,15 +163,12 @@ class Threatinfo(StreamingCommand):
                 resp = self._query_external_api(
                     self.api_urls[self.query_type], record[self.threat_url]
                 )
-                self.add_field(record, "response", resp)
-
-                """Debug"""
-                # self.add_field(record, "resource", record[self.threat_url])
-                # self.add_field(record, "query_type", self.api_urls[self.query_type])
-
+                if self.get_raw_response:
+                    self.add_field(record, "response", resp)
                 """ This resp (dictionary) need to be flat and unpacked """
-                # for node in self.resp:
-                #     self.add_field(record, str(node[-2]), str(node[-1]))
+                parse_data = self._flatten_dict(resp)
+                for node in parse_data:
+                    self.add_field(record, node[-2], node[-1])
             yield record
 
 
