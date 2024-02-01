@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import sys
 import requests
-import json
 
 """Debug"""
 # import os
@@ -21,9 +20,11 @@ from splunklib.searchcommands import (
     validators,
 )
 
-__version__ = "1.1.244"
+__version__ = "1.2.246"
 
-__apikey__ = ""
+__cloudapikey__ = ""
+
+__tipapikey__ = ""
 
 
 @Configuration()
@@ -42,7 +43,7 @@ class Threatinfo(StreamingCommand):
 
             | makeresults
             | eval url="159.203.93.255"
-            | threatinfo threat_url=url query_type=scene_ip_reputation get_raw_response=true
+            | threatinfo threat_url=url local=false cloud_type=scene_ip_reputation get_raw_response=true
 
         There would add a field name "response" about the XThreatBook API responsed. And the field value would like this below:
 
@@ -85,11 +86,20 @@ class Threatinfo(StreamingCommand):
         validate=validators.Fieldname(),
     )
 
-    query_type = Option(
+    local = Option(
         doc="""
-        **Syntax:** **query_type=***<scene_ip_reputation|ip_query|domain_query|scene_dns  \
+        **Syntax:** **platform=***<boolean>*
+        **Description:**The option determines whether to use local platform(tip).""",
+        require=False,
+        default=True,
+        validate=validators.Boolean(),
+    )
+
+    cloud_type: Option = Option(
+        doc="""
+        **Syntax:** **cloud_type=***<scene_ip_reputation|ip_query|domain_query|scene_dns  \
         |ip_adv_query|domain_adv_query|domain_sub_domains|scene_domain_context>*
-        **Description:**The option determines which api to query.""",
+        **Description:**The option determines which cloud api to query.""",
         require=False,
         default="scene_ip_reputation",
         validate=validators.Set(
@@ -101,6 +111,19 @@ class Threatinfo(StreamingCommand):
             "domain_adv_query",
             "domain_sub_domains",
             "scene_domain_context",
+        ),
+    )
+
+    tip_type = Option(
+        doc="""
+        **Syntax:** **tip_type=***<dns|ip|location>*
+        **Description:**The option determines which tip api to query.""",
+        require=False,
+        default="dns",
+        validate=validators.Set(
+            "dns",
+            "ip",
+            "location",
         ),
     )
 
@@ -125,8 +148,12 @@ class Threatinfo(StreamingCommand):
             "domain_sub_domains": "https://api.threatbook.cn/v3/domain/sub_domains",
             "scene_domain_context": "https://api.threatbook.cn/v3/scene/domain_context",
         }
-
-        self.api_key = __apikey__
+        self.tip_urls = {
+            "dns": "http://10.173.16.254:8090/tip_api/v4/dns",
+            "ip": "http://10.173.16.254:8090/tip_api/v4/ip",
+            "location": "http://10.173.16.254:8090/tip_api/v4/location",
+        }
+        self.api_key = ""
 
     def prepare(self):
         super(Threatinfo, self).prepare()
@@ -148,9 +175,16 @@ class Threatinfo(StreamingCommand):
             result = response.json()
         return result if isinstance(result, dict) else None
 
-    """ This method is going to flat the nested dictionaries """
-
     def _flatten_dict(self, _dict):
+        """
+        This function flat the nested dictionarie and return paired keys and values.
+
+        Args:
+            _dict (dict): the nested dictionarie which need to flat
+
+        Yields:
+            (Generator): the paired keys and values which needed
+        """
         for k, v in _dict.items():
             if not isinstance(v, dict):
                 yield k, v
@@ -158,18 +192,29 @@ class Threatinfo(StreamingCommand):
                 yield from ((k, *q) for q in self._flatten_dict(v))
 
     def stream(self, records):
+        if self.local:
+            self.api_key = __tipapikey__
+            api_url = self.api_urls[self.tip_type]
+
+        else:
+            self.api_key = __cloudapikey__
+            api_url = self.api_urls[self.cloud_type]
+
+        """ Get api response """
         for index, record in enumerate(records):
             if index % 1 == 0:
-                resp = self._query_external_api(
-                    self.api_urls[self.query_type], record[self.threat_url]
-                )
-                if self.get_raw_response:
-                    self.add_field(record, "response", resp)
-                """ This resp (dictionary) need to be flat and unpacked """
-                parse_data = self._flatten_dict(resp)
-                for node in parse_data:
-                    self.add_field(record, node[-2], node[-1])
-            yield record
+                resource = record[self.threat_url]
+                resp = self._query_external_api(api_url, resource)
+
+        """If need to get raw response """
+        if self.get_raw_response:
+            self.add_field(record, "response", resp)
+
+        """ This resp (dictionary) need to be flat and unpacked """
+        parse_data = self._flatten_dict(resp)
+        for node in parse_data:
+            self.add_field(record, node[-2], node[-1])
+        yield record
 
 
 if __name__ == "__main__":
