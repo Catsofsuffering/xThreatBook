@@ -15,8 +15,9 @@ threatinfo threat_url=<fieldname> (get_raw_response=<boolean>) (query_type=scene
 This command can fetch threat information from **XThreatBook** by API based on the IPs or URLs provided by the user.
 
 - `<query_type>`: Optional, determines which type of XThreatBook API to use.
-- `<get_raw_response>`: - Optional, determines whether to get raw response.
-- `<threat_url>`: The "url" must be a field, and the result will be output into a field named "response".
+- `<local>`: Optional, specifies whether to use the local platform (e.g. TIP) for the API request.
+- `<get_raw_response>`: Optional, determines whether to get raw response.
+- `<threat_url>`: Required, The "url" must be a field, and the result will be output into a field named "response".
 
 You can use SPL command "spath" to parse the raw response.
 
@@ -27,10 +28,10 @@ Execute the following SPL command in the Splunk Search Head:
 ```spl
 | makeresults
 | eval url="159.203.93.255"
-| threatinfo threat_url=url query_type=scene_ip_reputation get_raw_response=true
+| threatinfo threat_url=url local=false cloud_type=scene_ip_reputation get_raw_response=raw
 ```
 
-The "url" must be a field, and the raw response will be output into a field named "response". Then you can use SPL command "spath" to parse the result. This will add a field named "response" containing the XThreatBook API response. The field value will look like this:
+The "url" must be a field, and the raw response will be output into a field named "response" if you . Then you can use SPL command "spath" to parse the result. This will add a field named "response" containing the XThreatBook API response. The field value will look like this:
 
 ```json
 {
